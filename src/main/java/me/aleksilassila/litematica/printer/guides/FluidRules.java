@@ -1,6 +1,7 @@
 package me.aleksilassila.litematica.printer.guides;
 
 import me.aleksilassila.litematica.printer.SchematicBlockState;
+import me.aleksilassila.litematica.printer.config.Configs;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -49,15 +50,25 @@ public final class FluidRules {
     /**
      * True when the blocks that hold this spot's fluid in already stand as in the schematic. The fluid runs through
      * the spots of the schematic's pool that are still empty, so the pool's rim counts, not just this spot's.
+     * With keepFluidsInSchematic, a rim spot that is air in the schematic needs something in the world that holds
+     * the fluid back too, so no fluid ends up where the schematic has none (a pool at the edge of the schematic).
      */
     public static boolean isContained(SchematicBlockState state, Fluid fluid) {
+        boolean strict = Configs.KEEP_FLUIDS_IN_SCHEMATIC.getBooleanValue();
         Set<BlockPos> pool = new HashSet<>();
         ArrayDeque<BlockPos> open = new ArrayDeque<>();
         pool.add(state.blockPos);
         open.add(state.blockPos);
         while (!open.isEmpty() && pool.size() < MAX_POOL) {
             BlockPos spot = open.poll();
+            // a waterlogged block that already stands keeps the water in on its full sides (the back of stairs)
+            BlockState standing = state.world.getBlockState(spot);
+            boolean built = !(standing.getBlock() instanceof LiquidBlock)
+                    && standing.getBlock() == state.schematic.getBlockState(spot).getBlock();
             for (Direction direction : SPREAD) {
+                if (built && standing.isFaceSturdy(state.world, spot, direction)) {
+                    continue;
+                }
                 BlockPos pos = spot.relative(direction);
                 BlockState wanted = state.schematic.getBlockState(pos);
                 if (wanted.getFluidState().getType().isSame(fluid)) {
@@ -65,7 +76,11 @@ public final class FluidRules {
                     if (distance <= FLOW_DISTANCE && pool.add(pos)) {
                         open.add(pos);
                     }
-                } else if (!wanted.isAir() && state.world.getBlockState(pos).getBlock() != wanted.getBlock()) {
+                } else if (wanted.isAir()) {
+                    if (strict && state.world.getBlockState(pos).canBeReplaced(fluid)) {
+                        return false;
+                    }
+                } else if (state.world.getBlockState(pos).getBlock() != wanted.getBlock()) {
                     return false;
                 }
             }

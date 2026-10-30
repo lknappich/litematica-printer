@@ -62,6 +62,10 @@ public class Printer {
             if (state.targetState.equals(state.currentState) || state.targetState.isAir()) {
                 continue;
             }
+            if (state.targetState.getBlock() == state.currentState.getBlock()
+                    && Guide.acceptsAnyState(state.targetState.getBlock())) {
+                continue;
+            }
 
             Guide[] guides = interactionGuides.getInteractionGuides(state);
 

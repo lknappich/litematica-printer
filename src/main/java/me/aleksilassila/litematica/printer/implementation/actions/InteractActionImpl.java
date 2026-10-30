@@ -15,8 +15,9 @@ public class InteractActionImpl extends InteractAction {
     @Override
     protected void interact(Minecraft client, LocalPlayer player, InteractionHand hand, BlockHitResult hitResult) {
         if (client.gameMode != null) {
+            // only the click on the block: using the item as well would put lily pads, buckets and the like
+            // wherever the player happens to look (buckets have their own UseItemAction)
             client.gameMode.useItemOn(player, hand, hitResult);
-            client.gameMode.useItem(player, hand);
         }
     }
 }

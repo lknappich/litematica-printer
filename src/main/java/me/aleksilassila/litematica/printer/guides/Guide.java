@@ -2,19 +2,29 @@ package me.aleksilassila.litematica.printer.guides;
 
 import me.aleksilassila.litematica.printer.SchematicBlockState;
 import me.aleksilassila.litematica.printer.actions.Action;
+import me.aleksilassila.litematica.printer.config.Configs;
 import me.aleksilassila.litematica.printer.implementation.BlockHelperImpl;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.CoralPlantBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.Property;
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 abstract public class Guide extends BlockHelperImpl {
+    private static List<String> anyStateNames = List.of();
+    private static Set<Block> anyStateBlocks = Set.of();
+
     protected final SchematicBlockState state;
     protected final BlockState currentState;
     protected final BlockState targetState;
@@ -94,6 +104,9 @@ abstract public class Guide extends BlockHelperImpl {
         if (state1.getBlock() != state2.getBlock()) {
             return false;
         }
+        if (acceptsAnyState(state1.getBlock())) {
+            return true;
+        }
 
         loop:
         for (Property<?> property : state1.getProperties()) {
@@ -117,6 +130,26 @@ abstract public class Guide extends BlockHelperImpl {
         }
 
         return true;
+    }
+
+    /**
+     * Blocks from the anyStateBlocks list count as printed once the block stands, whatever its state (the note of a
+     * note block, say), so the printer neither picks a placement for the state nor clicks them to change it.
+     */
+    public static boolean acceptsAnyState(Block block) {
+        List<String> names = Configs.ANY_STATE_BLOCKS.getStrings();
+        if (!names.equals(anyStateNames)) {
+            Set<Block> blocks = new HashSet<>();
+            for (String name : names) {
+                Identifier id = Identifier.tryParse(name.trim());
+                if (id != null) {
+                    BuiltInRegistries.BLOCK.getOptional(id).ifPresent(blocks::add);
+                }
+            }
+            anyStateNames = new ArrayList<>(names);
+            anyStateBlocks = blocks;
+        }
+        return anyStateBlocks.contains(block);
     }
 
     protected static <T extends Comparable<T>> Optional<T> getProperty(BlockState blockState, Property<T> property) {

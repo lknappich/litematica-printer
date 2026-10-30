@@ -26,7 +26,11 @@ import net.minecraft.world.level.material.Fluids;
  * <li>a stone basin with a water source and a waterlogged slab in it: the water may only go in once the walls
  * stand, and the slab has to end up waterlogged;</li>
  * <li>a torch next to a stray water source where the schematic wants stone: the torch may only go in once the
- * water is gone, so no torch is washed away.</li>
+ * water is gone, so no torch is washed away;</li>
+ * <li>a water source on a pillar at the edge of a second schematic: nothing holds it in, so it must not be poured
+ * (keepFluidsInSchematic);</li>
+ * <li>a note block on the basin rim that the schematic tunes to note 12: note blocks are in anyStateBlocks, so the
+ * printer places it and leaves it at note 0 instead of clicking it 12 times.</li>
  * </ul>
  * No water may end up anywhere else.
  */
@@ -41,6 +45,7 @@ public class PrinterFluidTest implements FabricClientGameTest {
             BlockPos player = ctx.computeOnClient(mc -> mc.player.blockPosition());
             // one layer below the feet so the player can look over the basin walls
             BlockPos o = player.offset(1, -1, -2);
+            BlockPos leak = o.offset(-3, 1, 0);
 
             run(world, "gamemode survival @a");
             run(world, "fill " + at(o.offset(0, 0, 0)) + " " + at(o.offset(3, 1, 4)) + " minecraft:air");
@@ -55,6 +60,7 @@ public class PrinterFluidTest implements FabricClientGameTest {
             run(world, "item replace entity @a hotbar.4 with minecraft:oak_slab 4");
             run(world, "item replace entity @a hotbar.5 with minecraft:torch " + TORCHES);
             run(world, "item replace entity @a hotbar.6 with minecraft:bucket");
+            run(world, "item replace entity @a hotbar.7 with minecraft:note_block 2");
             ctx.waitTicks(40);
 
             TestSchematic schematic = new TestSchematic("Printer Fluids", 4, 2, 5);
@@ -64,6 +70,7 @@ public class PrinterFluidTest implements FabricClientGameTest {
                     schematic.set(x, 1, z, block("minecraft:stone"));
                 }
             }
+            schematic.set(0, 1, 0, block("minecraft:note_block", "instrument=basedrum", "note=12", "powered=false"));
             schematic.set(1, 1, 1, block("minecraft:water", "level=0"));
             schematic.set(2, 1, 1, block("minecraft:oak_slab", "type=bottom", "waterlogged=true"));
             for (int x = 0; x < 3; x++) {
@@ -71,8 +78,12 @@ public class PrinterFluidTest implements FabricClientGameTest {
             }
             schematic.set(0, 1, 4, block("minecraft:torch"));
             schematic.set(2, 1, 4, block("minecraft:stone"));
+            TestSchematic pillar = new TestSchematic("Printer Leak", 1, 2, 1);
+            pillar.set(0, 0, 0, block("minecraft:stone"));
+            pillar.set(0, 1, 0, block("minecraft:water", "level=0"));
             ctx.runOnClient(mc -> {
                 try {
+                    pillar.place(mc.gameDirectory.toPath().resolve("schematics"), leak);
                     schematic.place(mc.gameDirectory.toPath().resolve("schematics"), o);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -85,7 +96,7 @@ public class PrinterFluidTest implements FabricClientGameTest {
             int ticks = 0;
             for (; ticks < TIMEOUT; ticks++) {
                 ctx.waitTick();
-                String missing = ctx.computeOnClient(mc -> missing(mc, o));
+                String missing = ctx.computeOnClient(mc -> missing(mc, o, leak));
                 if (basinWhenWet == null && ctx.computeOnClient(mc -> basinHasWater(mc, o))) {
                     basinWhenWet = ctx.computeOnClient(mc -> rim(mc, o));
                 }
@@ -97,25 +108,34 @@ public class PrinterFluidTest implements FabricClientGameTest {
             ctx.waitTicks(40);
             ctx.takeScreenshot("printer_fluids");
 
-            String missing = ctx.computeOnClient(mc -> missing(mc, o));
+            List<String> problems = new ArrayList<>();
+            String missing = ctx.computeOnClient(mc -> missing(mc, o, leak));
             if (!missing.isEmpty()) {
-                throw new AssertionError("not printed after " + ticks + " ticks: " + missing);
+                problems.add("not printed after " + ticks + " ticks: " + missing);
             }
             if (basinWhenWet != null && !basinWhenWet.isEmpty()) {
-                throw new AssertionError("water went in before the basin was closed, missing then: " + basinWhenWet);
+                problems.add("water went in before the basin was closed, missing then: " + basinWhenWet);
             }
             String stray = ctx.computeOnClient(mc -> strayWater(mc, o));
             if (!stray.isEmpty()) {
-                throw new AssertionError("water where the schematic has none: " + stray);
+                problems.add("water where the schematic has none: " + stray);
             }
             int torches = ctx.computeOnClient(mc -> mc.player.getInventory().countItem(Items.TORCH));
             if (torches != TORCHES - 1) {
-                throw new AssertionError("expected exactly one torch used, " + (TORCHES - torches) + " gone");
+                problems.add("expected exactly one torch used, " + (TORCHES - torches) + " gone");
             }
-            // one for the source, one for the slab
+            // one for the source, one for the slab, none for the pillar
             int water = ctx.computeOnClient(mc -> mc.player.getInventory().countItem(Items.WATER_BUCKET));
             if (water != WATER_BUCKETS - 2) {
-                throw new AssertionError("expected two water buckets used, " + (WATER_BUCKETS - water) + " used");
+                problems.add("expected two water buckets used, " + (WATER_BUCKETS - water) + " used");
+            }
+            int note = ctx.computeOnClient(mc -> mc.level.getBlockState(o.offset(0, 1, 0))
+                    .getOptionalValue(BlockStateProperties.NOTE).orElse(-1));
+            if (note != 0) {
+                problems.add("expected the note block left at note 0, found " + note);
+            }
+            if (!problems.isEmpty()) {
+                throw new AssertionError(String.join("; ", problems));
             }
         }
     }
@@ -130,20 +150,30 @@ public class PrinterFluidTest implements FabricClientGameTest {
         }
         expect(mc, o.offset(0, 1, 1), Blocks.STONE.defaultBlockState(), missing);
         expect(mc, o.offset(3, 1, 1), Blocks.STONE.defaultBlockState(), missing);
+        // once the slab stands, its bottom holds the water in itself
+        if (mc.level.getBlockState(o.offset(2, 1, 1)).is(Blocks.OAK_SLAB)) {
+            missing.removeIf(spot -> spot.startsWith(o.offset(2, 0, 1).toShortString() + " "));
+        }
         return String.join(", ", missing);
     }
 
     /** What is not yet as in the schematic. */
-    private static String missing(Minecraft mc, BlockPos o) {
+    private static String missing(Minecraft mc, BlockPos o, BlockPos leak) {
         List<String> missing = new ArrayList<>();
         for (int x = 0; x < 4; x++) {
             for (int z = 0; z < 3; z++) {
                 expect(mc, o.offset(x, 0, z), Blocks.STONE.defaultBlockState(), missing);
-                if (!(x == 1 || x == 2) || z != 1) {
+                if ((!(x == 1 || x == 2) || z != 1) && (x != 0 || z != 0)) {
                     expect(mc, o.offset(x, 1, z), Blocks.STONE.defaultBlockState(), missing);
                 }
             }
         }
+        // any note will do
+        BlockState noteBlock = mc.level.getBlockState(o.offset(0, 1, 0));
+        if (!noteBlock.is(Blocks.NOTE_BLOCK)) {
+            missing.add(o.offset(0, 1, 0).toShortString() + " " + noteBlock);
+        }
+        expect(mc, leak, Blocks.STONE.defaultBlockState(), missing);
         expect(mc, o.offset(1, 1, 1), Blocks.WATER.defaultBlockState(), missing);
         expect(mc, o.offset(2, 1, 1), Blocks.OAK_SLAB.defaultBlockState()
                 .setValue(BlockStateProperties.SLAB_TYPE, SlabType.BOTTOM)

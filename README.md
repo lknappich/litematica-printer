@@ -24,9 +24,18 @@ water and lava:
   blocks that should be dry are emptied with a bucket.
 - **No torches washed away.** Torches, rails, redstone and other blocks that water destroys wait until no stray water
   (water that is not in the schematic there) can run into them.
+- **Fluids stay in the schematic** (`keepFluidsInSchematic`, on by default). Water or lava at the edge of the
+  schematic is only poured once something stands next to it that holds it in, so it never runs where the schematic
+  has none.
+- **Only the clicked block.** Placing a block no longer also uses the held item, which used to put lily pads and the
+  like wherever you happened to look.
+- **Blocks in any state** (`anyStateBlocks`, default `minecraft:note_block`). Blocks in this list count as printed as
+  soon as the block stands. Note blocks tuned in the schematic used to be skipped (no click places one with that note)
+  or clicked until the note matched; now they are placed and left alone.
+  Add more block ids (`minecraft:repeater`, `minecraft:lever`, ...) in the Generic tab.
 
-Keep water buckets (and an empty bucket) in your inventory. The in-game test that prints a pool, a waterlogged slab
-and a torch next to stray water runs with `./gradlew runClientGameTest`.
+Keep water buckets (and an empty bucket) in your inventory. The in-game test that prints a pool, a waterlogged slab,
+a torch next to stray water, a water source nothing holds in and a note block runs with `./gradlew runClientGameTest`.
 
 ## Installation
 

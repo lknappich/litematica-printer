@@ -5,6 +5,7 @@ import fi.dy.masa.malilib.config.IConfigBase;
 import fi.dy.masa.malilib.config.options.ConfigBoolean;
 import fi.dy.masa.malilib.config.options.ConfigDouble;
 import fi.dy.masa.malilib.config.options.ConfigInteger;
+import fi.dy.masa.malilib.config.options.ConfigStringList;
 import me.aleksilassila.litematica.printer.PrinterReference;
 
 import java.util.List;
@@ -22,6 +23,8 @@ public class Configs {
     public static final ConfigBoolean INTERACT_BLOCKS = new ConfigBoolean("interactBlocks", true).apply(GENERIC_KEY);
     public static final ConfigBoolean PRINT_IN_AIR = new ConfigBoolean("printInAir", false).apply(GENERIC_KEY);
     public static final ConfigBoolean ROTATE = new ConfigBoolean("rotate", true).apply(GENERIC_KEY);
+    public static final ConfigBoolean KEEP_FLUIDS_IN_SCHEMATIC = new ConfigBoolean("keepFluidsInSchematic", true).apply(GENERIC_KEY);
+    public static final ConfigStringList ANY_STATE_BLOCKS = new ConfigStringList("anyStateBlocks", ImmutableList.of("minecraft:note_block")).apply(GENERIC_KEY);
 
     public static ImmutableList<IConfigBase> getConfigList() {
         List<IConfigBase> list = new java.util.ArrayList<>(fi.dy.masa.litematica.config.Configs.Generic.OPTIONS);
@@ -34,6 +37,8 @@ public class Configs {
         list.add(INTERACT_BLOCKS);
         list.add(PRINT_IN_AIR);
         list.add(ROTATE);
+        list.add(KEEP_FLUIDS_IN_SCHEMATIC);
+        list.add(ANY_STATE_BLOCKS);
 
         return ImmutableList.copyOf(list);
     }
