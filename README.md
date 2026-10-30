@@ -31,7 +31,8 @@ water and lava:
   like wherever you happened to look.
 - **Blocks in any state** (`anyStateBlocks`, default `minecraft:note_block`). Blocks in this list count as printed as
   soon as the block stands. Note blocks tuned in the schematic used to be skipped (no click places one with that note)
-  or clicked until the note matched; now they are placed and left alone.
+  or clicked until the note matched; now they are placed and left alone. Litematica's overlay no longer marks them as
+  "wrong state" and the material list no longer counts them as missing.
   Add more block ids (`minecraft:repeater`, `minecraft:lever`, ...) in the Generic tab.
 
 Keep water buckets (and an empty bucket) in your inventory. The in-game test that prints a pool, a waterlogged slab,

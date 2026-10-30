@@ -4,9 +4,14 @@ import static me.aleksilassila.litematica.printer.test.TestSchematic.block;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 
+import fi.dy.masa.litematica.data.DataManager;
+import fi.dy.masa.litematica.materials.MaterialListBase;
+import fi.dy.masa.litematica.render.schematic.ChunkRendererSchematicVbo;
 import me.aleksilassila.litematica.printer.config.Configs;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
@@ -30,7 +35,8 @@ import net.minecraft.world.level.material.Fluids;
  * <li>a water source on a pillar at the edge of a second schematic: nothing holds it in, so it must not be poured
  * (keepFluidsInSchematic);</li>
  * <li>a note block on the basin rim that the schematic tunes to note 12: note blocks are in anyStateBlocks, so the
- * printer places it and leaves it at note 0 instead of clicking it 12 times.</li>
+ * printer places it and leaves it at note 0 instead of clicking it 12 times, and Litematica neither marks it as
+ * wrong nor counts it as missing.</li>
  * </ul>
  * No water may end up anywhere else.
  */
@@ -134,6 +140,30 @@ public class PrinterFluidTest implements FabricClientGameTest {
             if (note != 0) {
                 problems.add("expected the note block left at note 0, found " + note);
             }
+
+            // Litematica itself: no "wrong state" overlay and nothing missing in the material list for the note block
+            BlockState tuned = Blocks.NOTE_BLOCK.defaultBlockState().setValue(BlockStateProperties.NOTE, 12);
+            String noteOverlay = overlayType(tuned, Blocks.NOTE_BLOCK.defaultBlockState());
+            String slabOverlay = overlayType(Blocks.OAK_SLAB.defaultBlockState(),
+                    Blocks.OAK_SLAB.defaultBlockState().setValue(BlockStateProperties.SLAB_TYPE, SlabType.TOP));
+            if (!noteOverlay.equals("NONE") || !slabOverlay.equals("WRONG_STATE")) {
+                problems.add("overlay for the note block " + noteOverlay + " (want NONE), for a flipped slab "
+                        + slabOverlay + " (want WRONG_STATE)");
+            }
+            MaterialListBase materials = ctx.computeOnClient(mc -> {
+                MaterialListBase list = DataManager.getSchematicPlacementManager().getSelectedSchematicPlacement()
+                        .getMaterialList();
+                list.reCreateMaterialList();
+                return list;
+            });
+            ctx.waitTicks(60);
+            String noteCount = ctx.computeOnClient(mc -> materials.getMaterialsAll().stream()
+                    .filter(entry -> entry.getStack().is(Items.NOTE_BLOCK))
+                    .map(entry -> entry.getCountTotal() + " total, " + entry.getCountMissing() + " missing")
+                    .findFirst().orElse("no entry"));
+            if (!noteCount.equals("1 total, 0 missing")) {
+                problems.add("material list for note blocks: " + noteCount + " (want 1 total, 0 missing)");
+            }
             if (!problems.isEmpty()) {
                 throw new AssertionError(String.join("; ", problems));
             }
@@ -210,6 +240,23 @@ public class PrinterFluidTest implements FabricClientGameTest {
             }
         }
         return String.join(", ", stray);
+    }
+
+    /** What Litematica's overlay shows for these states, asked from a bare chunk renderer. */
+    private static String overlayType(BlockState schematic, BlockState client) {
+        try {
+            Field theUnsafe = Class.forName("sun.misc.Unsafe").getDeclaredField("theUnsafe");
+            theUnsafe.setAccessible(true);
+            Object unsafe = theUnsafe.get(null);
+            Object renderer = unsafe.getClass().getMethod("allocateInstance", Class.class)
+                    .invoke(unsafe, ChunkRendererSchematicVbo.class);
+            Method getOverlayType = ChunkRendererSchematicVbo.class
+                    .getDeclaredMethod("getOverlayType", BlockState.class, BlockState.class);
+            getOverlayType.setAccessible(true);
+            return String.valueOf(getOverlayType.invoke(renderer, schematic, client));
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     private static void run(TestSingleplayerContext world, String command) {

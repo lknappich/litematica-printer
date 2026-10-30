@@ -22,8 +22,11 @@ import java.util.Optional;
 import java.util.Set;
 
 abstract public class Guide extends BlockHelperImpl {
-    private static List<String> anyStateNames = List.of();
-    private static Set<Block> anyStateBlocks = Set.of();
+    /** The parsed anyStateBlocks list; Litematica's chunk builder threads read it too. */
+    private record AnyState(List<String> names, Set<Block> blocks) {
+    }
+
+    private static volatile AnyState anyState = new AnyState(List.of(), Set.of());
 
     protected final SchematicBlockState state;
     protected final BlockState currentState;
@@ -134,22 +137,28 @@ abstract public class Guide extends BlockHelperImpl {
 
     /**
      * Blocks from the anyStateBlocks list count as printed once the block stands, whatever its state (the note of a
-     * note block, say), so the printer neither picks a placement for the state nor clicks them to change it.
+     * note block, say), so the printer neither picks a placement for the state nor clicks them to change it, and
+     * Litematica neither marks them nor counts them as missing.
      */
     public static boolean acceptsAnyState(Block block) {
-        List<String> names = Configs.ANY_STATE_BLOCKS.getStrings();
-        if (!names.equals(anyStateNames)) {
-            Set<Block> blocks = new HashSet<>();
-            for (String name : names) {
-                Identifier id = Identifier.tryParse(name.trim());
-                if (id != null) {
-                    BuiltInRegistries.BLOCK.getOptional(id).ifPresent(blocks::add);
+        AnyState current = anyState;
+        try {
+            List<String> names = Configs.ANY_STATE_BLOCKS.getStrings();
+            if (!names.equals(current.names())) {
+                Set<Block> blocks = new HashSet<>();
+                for (String name : names) {
+                    Identifier id = Identifier.tryParse(name.trim());
+                    if (id != null) {
+                        BuiltInRegistries.BLOCK.getOptional(id).ifPresent(blocks::add);
+                    }
                 }
+                current = new AnyState(new ArrayList<>(names), blocks);
+                anyState = current;
             }
-            anyStateNames = new ArrayList<>(names);
-            anyStateBlocks = blocks;
+        } catch (RuntimeException e) {
+            // the list is being edited in the config screen right now; the last copy does until the next call
         }
-        return anyStateBlocks.contains(block);
+        return current.blocks().contains(block);
     }
 
     protected static <T extends Comparable<T>> Optional<T> getProperty(BlockState blockState, Property<T> property) {

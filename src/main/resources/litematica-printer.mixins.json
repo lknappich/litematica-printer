@@ -4,10 +4,12 @@
   "package": "me.aleksilassila.litematica.printer.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "ChunkRendererSchematicVboMixin",
     "ConfigsMixin",
     "GuiConfigsMixin",
     "InputHandlerMixin",
-    "PlayerMoveC2SPacketMixin"
+    "PlayerMoveC2SPacketMixin",
+    "TaskCountBlocksPlacementMixin"
   ],
   "injectors": {
     "defaultRequire": 1
