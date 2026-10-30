@@ -16,7 +16,12 @@ import me.aleksilassila.litematica.printer.guides.FluidRules;
 import me.aleksilassila.litematica.printer.guides.Guide;
 import me.aleksilassila.litematica.printer.implementation.PrinterPlacementContext;
 import me.aleksilassila.litematica.printer.implementation.actions.InteractActionImpl;
+import me.aleksilassila.litematica.printer.mixin.BlockItemInvoker;
+import me.aleksilassila.litematica.printer.mixin.BlockStatePredictionHandlerAccessor;
+import me.aleksilassila.litematica.printer.mixin.ClientLevelAccessor;
 
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.prediction.BlockStatePredictionHandler;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.BlockItem;
@@ -96,7 +101,7 @@ abstract public class PlacementGuide extends Guide
             return false;
         }
 
-		BlockPlaceContext ctx = getPlacementContext(player);
+		PrinterPlacementContext ctx = getPlacementContext(player);
         if (ctx == null || !ctx.canPlace())
         {
             return false;
@@ -123,12 +128,68 @@ abstract public class PlacementGuide extends Guide
             {
                 return false;
             }
+            if (!placesRightBlock(player, ctx))
+            {
+                return false;
+            }
 			return !(currentState.getBlock() instanceof LiquidBlock) || canPlaceInWater(resultState);
 		}
 		else
 		{
 			return false;
 		}
+	}
+
+	/**
+	 * Whether placing gives what the schematic wants there, or a first step that another guide finishes (a log that
+	 * gets stripped, a slab that becomes a double slab, ...). Anything else would leave a wrong block that the printer
+	 * cannot remove again.
+	 */
+	protected boolean isRightResult(BlockState result)
+	{
+		return statesEqual(result, targetState);
+	}
+
+	/**
+	 * Places the click the way the server will: with the view the server gets (the printer's look direction only
+	 * when rotate is on), through the item's own placement logic, and checks that the block lands on this spot and
+	 * comes out right. A clicked neighbour that the client predicted but the server has not confirmed yet is not
+	 * trusted: if the server never placed it, the new block would end up in its place.
+	 */
+	protected boolean placesRightBlock(LocalPlayer player, PrinterPlacementContext ctx)
+	{
+		BlockPos clicked = ctx.hitResult.getBlockPos();
+		if (!clicked.equals(state.blockPos) && isUnconfirmed(state.world, clicked))
+		{
+			return false;
+		}
+		if (!(ctx.getItemInHand().getItem() instanceof BlockItem blockItem))
+		{
+			return ctx.getClickedPos().equals(state.blockPos);
+		}
+
+		PrinterPlacementContext seen = Configs.ROTATE.getBooleanValue() ? ctx
+				: new PrinterPlacementContext(player, ctx.hitResult, ctx.getItemInHand(), ctx.requiredItemSlot,
+				null, ctx.shouldSneak);
+		BlockPlaceContext placed = blockItem.updatePlacementContext(seen);
+		if (placed == null || !placed.getClickedPos().equals(state.blockPos))
+		{
+			return false;
+		}
+		BlockState result = ((BlockItemInvoker) blockItem).printer$getPlacementState(placed);
+		Printer.printDebug("PlacementGuide#placesRightBlock() - {} gives {}", ctx, result);
+		return result != null && isRightResult(result);
+	}
+
+	private static boolean isUnconfirmed(Level world, BlockPos pos)
+	{
+		if (!(world instanceof ClientLevel level))
+		{
+			return false;
+		}
+		BlockStatePredictionHandler predictions = ((ClientLevelAccessor) level).printer$getPredictionHandler();
+		return ((BlockStatePredictionHandlerAccessor) predictions).printer$getServerVerifiedStates()
+				.containsKey(pos.asLong());
 	}
 
 	@Override

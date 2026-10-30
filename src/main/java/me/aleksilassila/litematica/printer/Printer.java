@@ -89,9 +89,20 @@ public class Printer {
         return false;
     }
 
+    /**
+     * The printingRange setting, measured from the eyes to the middle of a block, but no further than the server
+     * accepts clicks, so a too large setting cannot make it drop clicks and leave ghost blocks. The server allows
+     * the player's block reach plus one to the edge of the clicked block, which is a neighbour of the spot whose
+     * shared face is at most half a block further away.
+     */
+    public double getRange() {
+        return Math.min(Configs.PRINTING_RANGE.getDoubleValue(), player.blockInteractionRange() + 0.5);
+    }
+
     private List<BlockPos> getReachablePositions() {
-        int maxReach = (int) Math.ceil(Configs.PRINTING_RANGE.getDoubleValue());
-        double maxReachSquared = Mth.square(Configs.PRINTING_RANGE.getDoubleValue());
+        double range = getRange();
+        int maxReach = (int) Math.ceil(range);
+        double maxReachSquared = Mth.square(range);
 
         ArrayList<BlockPos> positions = new ArrayList<>();
 

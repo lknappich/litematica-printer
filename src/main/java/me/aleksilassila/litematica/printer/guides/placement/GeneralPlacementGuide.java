@@ -5,9 +5,9 @@ import me.aleksilassila.litematica.printer.SchematicBlockState;
 import me.aleksilassila.litematica.printer.config.Configs;
 import me.aleksilassila.litematica.printer.implementation.PrinterPlacementContext;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.RotatedPillarBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.phys.BlockHitResult;
@@ -23,6 +23,13 @@ import java.util.Optional;
  * for player state depending on the block being placed.
  */
 public class GeneralPlacementGuide extends PlacementGuide {
+    /**
+     * Which side of the target the click comes from. In the air there is no block on that side, so the target
+     * spot itself is clicked, at the same point and on the same face as the neighbour would be.
+     */
+    private record Click(Direction side, boolean inAir) {
+    }
+
     public GeneralPlacementGuide(SchematicBlockState state) {
         super(state);
     }
@@ -47,26 +54,11 @@ public class GeneralPlacementGuide extends PlacementGuide {
         return new Vec3(0, 0, 0);
     }
 
-    private Optional<Direction> getValidSide(SchematicBlockState state) {
-        boolean printInAir = Configs.PRINT_IN_AIR.getBooleanValue();
-
+    private Optional<Click> getClick(SchematicBlockState state) {
         List<Direction> sides = getPossibleSides();
 
         if (sides.isEmpty()) {
             return Optional.empty();
-        }
-
-        if (printInAir && !getRequiresSupport()) {
-            // When printInAir is enabled, we can place directly without support
-            // But we should still respect the intended orientation for directional blocks
-            // Check if we have specific sides defined by the subclass (like for logs)
-            if (!sides.isEmpty()) {
-                // Use the first available side from the specific sides (e.g., axis-specific for logs)
-                return Optional.of(sides.get(0));
-            } else {
-                // Fallback to UP if no specific sides are defined
-                return Optional.of(Direction.UP);
-            }
         }
 
         List<Direction> validSides = new ArrayList<>();
@@ -85,87 +77,69 @@ public class GeneralPlacementGuide extends PlacementGuide {
 
         for (Direction validSide : validSides) {
             if (!isInteractive(state.offset(validSide).currentState.getBlock())) {
-                return Optional.of(validSide);
+                return Optional.of(new Click(validSide, false));
             }
         }
 
-        return validSides.isEmpty() ? Optional.empty() : Optional.of(validSides.getFirst());
+        if (!validSides.isEmpty()) {
+            return Optional.of(new Click(validSides.getFirst(), false));
+        }
+
+        // nothing to click on: with printInAir, click the empty spot itself
+        if (Configs.PRINT_IN_AIR.getBooleanValue() && !getRequiresSupport()) {
+            return Optional.of(new Click(sides.getFirst(), true));
+        }
+
+        return Optional.empty();
     }
 
     protected boolean getUseShift(SchematicBlockState state) {
         if (getRequiresExplicitShift())
             return true;
 
-        Direction clickSide = getValidSide(state).orElse(null);
-        if (clickSide == null)
+        Click click = getClick(state).orElse(null);
+        if (click == null || click.inAir())
             return false;
-        return isInteractive(state.offset(clickSide).currentState.getBlock());
-    }
-
-    private Optional<Vec3> getHitVector(SchematicBlockState state) {
-        boolean printInAir = Configs.PRINT_IN_AIR.getBooleanValue();
-
-        if (printInAir && !getRequiresSupport()) {
-            // For air placement, target the center of the target block position
-            return Optional.of(Vec3.atCenterOf(state.blockPos));
-        }
-
-        return getValidSide(state).map(side -> Vec3.atCenterOf(state.blockPos)
-                .add(Vec3.atLowerCornerOf(side.getUnitVec3i()).scale(0.5))
-                .add(getHitModifier(side)));
+        return isInteractive(state.offset(click.side()).currentState.getBlock());
     }
 
     @Nullable
     public PrinterPlacementContext getPlacementContext(LocalPlayer player) {
         try {
-            Optional<Direction> validSide = getValidSide(state);
-            Optional<Vec3> hitVec = getHitVector(state);
+            Optional<Click> click = getClick(state);
             Optional<ItemStack> requiredItem = getRequiredItem(player);
             int requiredSlot = getRequiredItemStackSlot(player);
 
-            if (validSide.isEmpty() || hitVec.isEmpty() || requiredItem.isEmpty() || requiredSlot == -1)
+            if (click.isEmpty() || requiredItem.isEmpty() || requiredSlot == -1)
                 return null;
 
-            Optional<Direction> lookDirection = getLookDirection();
-            boolean requiresShift = getUseShift(state);
-
-            boolean printInAir = Configs.PRINT_IN_AIR.getBooleanValue();
-            BlockHitResult blockHitResult;
-
-            if (printInAir && !getRequiresSupport()) {
-                // For air placement, target the block position directly
-                // Use a hit side that allows the block to maintain its intended orientation
-                // The specific side depends on the block type and its intended orientation
-                Direction hitSide = validSide.get().getOpposite(); // Use the opposite of the valid side to maintain orientation
-
-                // For pillar blocks like logs, we need to be more specific about the hit side
-                if (targetState.hasProperty(RotatedPillarBlock.AXIS)) {
-                    // For pillar blocks, use a side perpendicular to the intended axis
-                    Direction.Axis axis = targetState.getValue(RotatedPillarBlock.AXIS);
-                    if (axis == Direction.Axis.Y) {
-                        hitSide = Direction.DOWN; // vertical log - hit from above
-                    } else if (axis == Direction.Axis.X) {
-                        hitSide = Direction.WEST; // horizontal log along X - hit from West/East side
-                    } else { // Z axis
-                        hitSide = Direction.NORTH; // horizontal log along Z - hit from North/South side
-                    }
-                } else {
-                    // For non-pillars, use DOWN as default to place normally
-                    hitSide = Direction.DOWN;
-                }
-
-                blockHitResult = new BlockHitResult(hitVec.get(), hitSide, state.blockPos, false);
-            } else {
-                blockHitResult = new BlockHitResult(hitVec.get(), validSide.get().getOpposite(),
-                        state.blockPos.relative(validSide.get()), false);
+            if (!click.get().inAir()) {
+                return context(player, click.get(), requiredItem.get(), requiredSlot);
             }
-
-            return new PrinterPlacementContext(player, blockHitResult, requiredItem.get(), requiredSlot,
-                    lookDirection.orElse(null), requiresShift);
+            // in the air any side will do, but which one decides how some blocks come out (a slab added to another)
+            for (Direction side : getPossibleSides()) {
+                PrinterPlacementContext context = context(player, new Click(side, true), requiredItem.get(), requiredSlot);
+                if (placesRightBlock(player, context)) {
+                    return context;
+                }
+            }
+            return null;
         } catch (Exception e) {
             Printer.LOGGER.error("getPlacementContext(): Exception caught: {}", e.getMessage());
             //e.printStackTrace();
             return null;
         }
+    }
+
+    private PrinterPlacementContext context(LocalPlayer player, Click click, ItemStack item, int slot) {
+        Direction side = click.side();
+        Vec3 hitVec = Vec3.atCenterOf(state.blockPos)
+                .add(Vec3.atLowerCornerOf(side.getUnitVec3i()).scale(0.5))
+                .add(getHitModifier(side));
+        BlockPos clicked = click.inAir() ? state.blockPos : state.blockPos.relative(side);
+        BlockHitResult blockHitResult = new BlockHitResult(hitVec, side.getOpposite(), clicked, false);
+
+        return new PrinterPlacementContext(player, blockHitResult, item, slot,
+                getLookDirection().orElse(null), getUseShift(state));
     }
 }

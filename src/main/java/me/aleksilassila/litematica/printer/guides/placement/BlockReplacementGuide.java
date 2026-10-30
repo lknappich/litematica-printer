@@ -11,6 +11,7 @@ import net.minecraft.world.level.block.CandleBlock;
 import net.minecraft.world.level.block.SeaPickleBlock;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.SnowLayerBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.phys.BlockHitResult;
@@ -58,6 +59,16 @@ public class BlockReplacementGuide extends PlacementGuide {
 
         BlockHitResult hitResult = new BlockHitResult(Vec3.atCenterOf(state.blockPos), Direction.UP, state.blockPos, false);
         return new PrinterPlacementContext(player, hitResult, requiredItem.get(), slot);
+    }
+
+    /** One more candle, pickle or snow layer (up to the target's), or the second half of a double slab. */
+    @Override
+    protected boolean isRightResult(BlockState result) {
+        if (result.getBlock() != targetState.getBlock()
+                || !statesEqualIgnoreProperties(result, targetState, CandleBlock.LIT, increasingProperty)) {
+            return false;
+        }
+        return increasingProperty == null || result.getValue(increasingProperty) <= targetLevel;
     }
 
     @Override

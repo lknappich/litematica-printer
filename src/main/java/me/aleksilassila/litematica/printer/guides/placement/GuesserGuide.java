@@ -53,46 +53,34 @@ public class GuesserGuide extends GeneralPlacementGuide {
         if (contextCache != null && !Configs.PRINT_DEBUG.getBooleanValue())
             return contextCache;
 
-        // First, try air placement if enabled
-        boolean printInAir = Configs.PRINT_IN_AIR.getBooleanValue();
-        if (printInAir && !getRequiresSupport()) {
-            ItemStack requiredItem = getRequiredItem(player).orElse(ItemStack.EMPTY);
-            int slot = getRequiredItemStackSlot(player);
-
-            if (slot != -1) {
-                // Try different directions to find a successful placement
-                for (Direction side : directionsToTry) {
-                    Vec3 hitVec = Vec3.atCenterOf(state.blockPos);
-                    BlockHitResult hitResult = new BlockHitResult(hitVec, side.getOpposite(), state.blockPos, false);
-
-                    boolean requiresShift = getRequiresExplicitShift() || isInteractive(state.world.getBlockState(state.blockPos.relative(side.getOpposite())).getBlock());
-                    PrinterPlacementContext context = new PrinterPlacementContext(player, hitResult, requiredItem, slot, null, requiresShift);
-                    BlockState result = getRequiredItemAsBlock(player)
-                            .orElse(targetState.getBlock())
-                            .getStateForPlacement(context);
-
-                    if (result != null && (statesEqual(result, targetState) || correctChestPlacement(targetState, result))) {
-                        contextCache = context;
-                        return context;
-                    }
-                }
-            }
-        }
-
         ItemStack requiredItem = getRequiredItem(player).orElse(ItemStack.EMPTY);
         int slot = getRequiredItemStackSlot(player);
 
         if (slot == -1)
             return null;
 
+        // a block next to the spot is clicked if there is one; only then, with printInAir, the empty spot itself
+        contextCache = guess(player, requiredItem, slot, false);
+        if (contextCache == null && Configs.PRINT_IN_AIR.getBooleanValue() && !getRequiresSupport()) {
+            contextCache = guess(player, requiredItem, slot, true);
+        }
+        return contextCache;
+    }
+
+    /**
+     * Tries every look direction, side and point on that side until placing gives the target state. In the air the
+     * target spot itself is clicked at the point where its neighbour would be, which places the block the same way.
+     */
+    @Nullable
+    private PrinterPlacementContext guess(LocalPlayer player, ItemStack requiredItem, int slot, boolean inAir) {
         for (Direction lookDirection : directionsToTry) {
             for (Direction side : directionsToTry) {
                 BlockPos neighborPos = state.blockPos.relative(side);
                 BlockState neighborState = state.world.getBlockState(neighborPos);
-                boolean requiresShift = getRequiresExplicitShift() || isInteractive(neighborState.getBlock());
+                boolean requiresShift = getRequiresExplicitShift() || (!inAir && isInteractive(neighborState.getBlock()));
 
-                if (!canBeClicked(state.world, neighborPos) || // Handle unclickable grass for example
-                        neighborState.canBeReplaced())
+                if (!inAir && (!canBeClicked(state.world, neighborPos) || // Handle unclickable grass for example
+                        neighborState.canBeReplaced()))
                     continue;
 
                 Vec3 hitVec = Vec3.atCenterOf(state.blockPos)
@@ -104,7 +92,7 @@ public class GuesserGuide extends GeneralPlacementGuide {
                             multiplier.z == 0 ? 1 : 0);
 
                     BlockHitResult hitResult = new BlockHitResult(hitVec.add(hitVecToTry.multiply(multiplier)),
-                            side.getOpposite(), neighborPos, false);
+                            side.getOpposite(), inAir ? state.blockPos : neighborPos, false);
                     PrinterPlacementContext context = new PrinterPlacementContext(player, hitResult, requiredItem, slot,
                             lookDirection, requiresShift);
                     BlockState result = getRequiredItemAsBlock(player)
@@ -112,9 +100,7 @@ public class GuesserGuide extends GeneralPlacementGuide {
                             .getStateForPlacement(context); // FIXME torch shift clicks another torch and getPlacementState
                     // is the clicked block, which is true
 
-                    if (result != null
-                            && (statesEqual(result, targetState) || correctChestPlacement(targetState, result))) {
-                        contextCache = context;
+                    if (result != null && isRightResult(result)) {
                         return context;
                     }
                 }
@@ -122,6 +108,11 @@ public class GuesserGuide extends GeneralPlacementGuide {
         }
 
         return null;
+    }
+
+    @Override
+    protected boolean isRightResult(BlockState result) {
+        return super.isRightResult(result) || correctChestPlacement(targetState, result);
     }
 
     @Override

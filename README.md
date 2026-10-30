@@ -35,8 +35,22 @@ water and lava:
   "wrong state" and the material list no longer counts them as missing.
   Add more block ids (`minecraft:repeater`, `minecraft:lever`, ...) in the Generic tab.
 
-Keep water buckets (and an empty bucket) in your inventory. The in-game test that prints a pool, a waterlogged slab,
-a torch next to stray water, a water source nothing holds in and a note block runs with `./gradlew runClientGameTest`.
+- **Only the right block in the right spot.** Before every placement the printer works out what the server will
+  make of the click: with the view the server gets, through the item's own placement rules, including whether the
+  block fits next to the player. It only clicks when the block lands exactly on the spot and comes out as in the
+  schematic (or as a first step another guide finishes, like a log that gets stripped). This used to go wrong for a
+  top slab that should become a double slab (a second slab went on top of it), and with `rotate` off (stairs and
+  the like were placed facing the way the player looked). A neighbour that the client placed but the server has not
+  confirmed yet is not clicked, so a dropped placement cannot make the next block land in its spot.
+- **Printing in air** (`printInAir`). Blocks with no neighbour to click get placed by clicking the empty spot
+  itself, at the same point and face a neighbour would be clicked, so slabs, stairs and logs get the right half,
+  facing and axis. A neighbour is still used where there is one.
+- **Range** (`printingRange`, 1 to 6). The setting is capped to what the server accepts (the player's block reach
+  plus half a block, so 5 in survival and 5.5 in creative), so a large value cannot cause dropped clicks.
+
+Keep water buckets (and an empty bucket) in your inventory. The in-game tests that print a pool, a waterlogged slab,
+a torch next to stray water, a water source nothing holds in, a note block, floating blocks, stairs with `rotate` off
+and a block out of range run with `./gradlew runClientGameTest`.
 
 ## Installation
 
@@ -81,8 +95,6 @@ To make fixing bugs easier, include the following information in your issue:
 
 Currently, the following features are still broken or missing:
 
-- Placing liquids (printing **in** liquids works though)
-- Printing without support directly in air (printInAir)
 - Current algorithm for placing rails isn't perfect,
   sometimes it can't place all the rails (to avoid placing anything incorrectly).
 - Legit mode? (for anticheats)

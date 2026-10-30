@@ -47,6 +47,15 @@ public class SlabGuide extends GeneralPlacementGuide {
         return resultList;
     }
 
+    /** For a double slab, the first half is fine too; BlockReplacementGuide adds the second. */
+    @Override
+    protected boolean isRightResult(BlockState result) {
+        if (targetState.getValue(SlabBlock.TYPE) == SlabType.DOUBLE && result.getBlock() == targetState.getBlock()) {
+            return true;
+        }
+        return super.isRightResult(result);
+    }
+
     @Override
     protected Vec3 getHitModifier(Direction validSide) {
         Direction requiredHalf = getRequiredHalf(state);

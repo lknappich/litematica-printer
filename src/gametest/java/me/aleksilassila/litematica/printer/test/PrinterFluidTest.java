@@ -88,6 +88,7 @@ public class PrinterFluidTest implements FabricClientGameTest {
             pillar.set(0, 0, 0, block("minecraft:stone"));
             pillar.set(0, 1, 0, block("minecraft:water", "level=0"));
             ctx.runOnClient(mc -> {
+                TestSchematic.removeAllPlacements();
                 try {
                     pillar.place(mc.gameDirectory.toPath().resolve("schematics"), leak);
                     schematic.place(mc.gameDirectory.toPath().resolve("schematics"), o);

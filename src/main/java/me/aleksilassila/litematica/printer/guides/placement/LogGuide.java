@@ -14,6 +14,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RotatedPillarBlock;
+import net.minecraft.world.level.block.state.BlockState;
 
 public class LogGuide extends GeneralPlacementGuide
 {
@@ -46,6 +47,14 @@ public class LogGuide extends GeneralPlacementGuide
 		}
 
 		return super.getRequiredItems();
+	}
+
+	/** The unstripped log with the target's axis; LogStrippingGuide strips it afterwards. */
+	@Override
+	protected boolean isRightResult(BlockState result)
+	{
+		return BlockHelper.STRIPPED_BLOCKS.get(result.getBlock()) == targetState.getBlock()
+				&& result.getOptionalValue(RotatedPillarBlock.AXIS).equals(targetState.getOptionalValue(RotatedPillarBlock.AXIS));
 	}
 
 	@Override

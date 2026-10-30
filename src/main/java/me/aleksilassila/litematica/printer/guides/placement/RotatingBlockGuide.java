@@ -8,11 +8,13 @@ import javax.annotation.Nonnull;
 import me.aleksilassila.litematica.printer.SchematicBlockState;
 import me.aleksilassila.litematica.printer.actions.Action;
 import me.aleksilassila.litematica.printer.actions.PrepareAction;
+import me.aleksilassila.litematica.printer.config.Configs;
 import me.aleksilassila.litematica.printer.implementation.PrinterPlacementContext;
 
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 public class RotatingBlockGuide extends GeneralPlacementGuide {
@@ -35,6 +37,15 @@ public class RotatingBlockGuide extends GeneralPlacementGuide {
     @Override
     public boolean skipOtherGuides() {
         return true;
+    }
+
+    /** With rotate on, the printer turns the player to the schematic's rotation right before placing. */
+    @Override
+    protected boolean isRightResult(BlockState result) {
+        if (Configs.ROTATE.getBooleanValue()) {
+            return statesEqualIgnoreProperties(result, targetState, BlockStateProperties.ROTATION_16);
+        }
+        return super.isRightResult(result);
     }
 
     @Override

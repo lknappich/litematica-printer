@@ -32,6 +32,17 @@ public class ChestGuide extends GeneralPlacementGuide {
         return true;
     }
 
+    /** Facing as in the schematic; a single chest is fine where the other half comes later. */
+    @Override
+    protected boolean isRightResult(BlockState result) {
+        if (result.getBlock() != targetState.getBlock()
+                || result.getValue(ChestBlock.FACING) != targetState.getValue(ChestBlock.FACING)) {
+            return false;
+        }
+        return result.getValue(ChestBlock.TYPE) == targetState.getValue(ChestBlock.TYPE)
+                || result.getValue(ChestBlock.TYPE) == ChestType.SINGLE;
+    }
+
     @Override
     protected Optional<Direction> getLookDirection() {
         return getProperty(targetState, ChestBlock.FACING)

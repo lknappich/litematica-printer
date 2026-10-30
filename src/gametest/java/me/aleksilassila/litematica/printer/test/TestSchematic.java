@@ -66,6 +66,14 @@ final class TestSchematic {
         manager.setSelectedSchematicPlacement(placement);
     }
 
+    /** Litematica keeps placements by world name, so a test world can start with the last test's placements. */
+    static void removeAllPlacements() {
+        SchematicPlacementManager manager = DataManager.getSchematicPlacementManager();
+        for (SchematicPlacement placement : new ArrayList<>(manager.getAllSchematicsPlacements())) {
+            manager.removeSchematicPlacement(placement);
+        }
+    }
+
     private int index(int x, int y, int z) {
         return (y * sizeZ + z) * sizeX + x;
     }

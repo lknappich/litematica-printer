@@ -34,6 +34,13 @@ public class PrinterPlacementContext extends BlockPlaceContext
         this.requiredItemSlot = requiredItemSlot;
     }
 
+    /** Sneaking as the printer will send it, not as the player happens to be (chests connect by it). */
+    @Override
+    public boolean isSecondaryUseActive()
+    {
+        return shouldSneak;
+    }
+
     @Override
     public @NonNull Direction getNearestLookingDirection()
     {

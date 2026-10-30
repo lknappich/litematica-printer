@@ -6,7 +6,8 @@
   "environment": "client",
   "entrypoints": {
     "fabric-client-gametest": [
-      "me.aleksilassila.litematica.printer.test.PrinterFluidTest"
+      "me.aleksilassila.litematica.printer.test.PrinterFluidTest",
+      "me.aleksilassila.litematica.printer.test.PrinterPlacementTest"
     ]
   },
   "depends": {
