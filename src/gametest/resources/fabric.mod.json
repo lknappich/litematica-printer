@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "litematica-printer-test",
+  "version": "1.0.0",
+  "name": "Litematica Printer Tests",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "me.aleksilassila.litematica.printer.test.PrinterFluidTest"
+    ]
+  },
+  "depends": {
+    "litematica_printer": "*"
+  }
+}

@@ -12,6 +12,7 @@ import me.aleksilassila.litematica.printer.actions.Action;
 import me.aleksilassila.litematica.printer.actions.PrepareAction;
 import me.aleksilassila.litematica.printer.actions.ReleaseShiftAction;
 import me.aleksilassila.litematica.printer.config.Configs;
+import me.aleksilassila.litematica.printer.guides.FluidRules;
 import me.aleksilassila.litematica.printer.guides.Guide;
 import me.aleksilassila.litematica.printer.implementation.PrinterPlacementContext;
 import me.aleksilassila.litematica.printer.implementation.actions.InteractActionImpl;
@@ -114,6 +115,11 @@ abstract public class PlacementGuide extends Guide
 		if (resultState != null)
 		{
             if (!resultState.canSurvive(state.world, state.blockPos))
+            {
+                return false;
+            }
+            // wait until the blocks that hold the water back stand, or the water would wash it away again
+            if (FluidRules.washesAway(resultState) && FluidRules.strayFluidNear(state))
             {
                 return false;
             }

@@ -10,6 +10,24 @@ allows players to build big structures more quickly by automatically placing the
 
 ![Demo](printer_demo.gif)
 
+## Changes in this fork
+
+Based on [sakura-ryoko's 26.3 branch](https://github.com/sakura-ryoko/litematica-printer/tree/26.3), with fixes for
+water and lava:
+
+- **Fluid sources are poured with a bucket.** Litematica names a bucket as the item for every fluid block, so the
+  printer used to "place" water like a block: it emptied the bucket wherever you happened to look and then got stuck
+  on that spot. Now it aims the bucket at a block next to the spot. Flowing water is left to its sources.
+- **Water only goes in once it is held in.** A source is poured only after the floor and walls around the schematic's
+  pool stand, so it cannot run into the unfinished build.
+- **Waterlogged blocks.** Blocks that are waterlogged in the schematic are filled with a water bucket after placing,
+  blocks that should be dry are emptied with a bucket.
+- **No torches washed away.** Torches, rails, redstone and other blocks that water destroys wait until no stray water
+  (water that is not in the schematic there) can run into them.
+
+Keep water buckets (and an empty bucket) in your inventory. The in-game test that prints a pool, a waterlogged slab
+and a torch next to stray water runs with `./gradlew runClientGameTest`.
+
 ## Installation
 
 1. Download and install [Fabric](https://fabricmc.net/use/installer/) if you haven't already.

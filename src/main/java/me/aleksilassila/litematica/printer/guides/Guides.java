@@ -19,6 +19,8 @@ public class Guides {
     static {
         // registerGuide(SkipGuide.class, AbstractSignBlock.class, SkullBlock.class, BannerBlock.class);
 
+        registerGuide(FluidGuide.class, LiquidBlock.class);
+        registerGuide(WaterlogGuide.class);
         registerGuide(RotatingBlockGuide.class, AbstractSkullBlock.class, SignBlock.class, AbstractBannerBlock.class);
         registerGuide(SlabGuide.class, SlabBlock.class);
         registerGuide(TorchGuide.class, TorchBlock.class);
